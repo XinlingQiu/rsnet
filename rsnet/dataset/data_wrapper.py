@@ -149,3 +149,51 @@ class RasterDataIterator(object):
     def count(self):
         """Band counts."""
         return self._band.count
+
+    @property
+    def crs(self):
+        return self._band.crs
+
+    @property
+    def transform(self):
+        """Transform matrix as the `affine.Affine`
+        
+        This transform maps pixel row/column coordinates to coordinates in the dataset’s coordinate reference system.
+        
+        affine.identity is returned if if the file does not contain transform
+        """
+        return self._band.transform
+
+    @property
+    def nodata(self):
+        """
+        Band nodata value, type depends on the image dtype; None if the nodata value is not specified
+        """
+        return self._band.nodata
+
+    @property
+    def res(self):
+        """
+        Spatial resolution (x_res, y_res) of the Band in X and Y directions of the georeferenced coordinate system,
+        derived from tranaform. Normally is equal to (transform.a, - transform.e)
+        """
+        return self._band.res
+
+    @property
+    def shape(self):
+        """
+        The raster dimension as a Tuple (height, width)
+        """
+        return self.height, self.width
+
+    @property
+    def bounds(self):
+        """
+        Georeferenced bounds - bounding box in the CRS of the image, based on transform and shape
+        
+        Returns:
+            `BoundingBox object
+            <https://rasterio.readthedocs.io/en/latest/api/rasterio.coords.html#rasterio.coords.BoundingBox>`_:
+            (left, bottom, right, top)
+        """
+        return self._band.bounds
