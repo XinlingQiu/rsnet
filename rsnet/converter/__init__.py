@@ -1,1 +1,1 @@
-from .split import split
+from .split import RasterDataSpliter

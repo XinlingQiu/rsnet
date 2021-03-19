@@ -2,6 +2,7 @@ import os.path as osp
 
 import rasterio as rio
 from affine import Affine
+from tqdm import tqdm
 
 from ..dataset import RasterDataIterator
 from ..utils import mkdir
@@ -20,28 +21,39 @@ def window_transform(window, transform):
     return Affine.translation(x - transform.c, y - transform.f) * transform
 
 
-def split(fname, outpath, win_size, step_size, suffix_tmpl='_{}_{}'):
-    ds = RasterDataIterator(fname,
-                            win_size=win_size,
-                            step_size=step_size,
-                            pad_size=0)
+class RasterDataSpliter(RasterDataIterator):
+    def __init__(self, fname, win_size, step_size, suffix_tmpl='_{}_{}'):
+        super().__init__(fname=fname,
+                         win_size=win_size,
+                         step_size=step_size,
+                         pad_size=0)
 
-    mkdir(outpath)
-    basename = ds.name
-    suffix = f'{suffix_tmpl}.{ds.suffix}'
-    driver = ds.meta['driver']
-    for i, (tile, win) in enumerate(ds, start=1):
-        xoff, yoff = win.col_off, win.row_off
-        width, height = win.width, win.height
-        outfile = osp.join(outpath, basename + suffix.format(xoff, yoff))
-        transform = window_transform(win, ds.transform)
-        with rio.open(outfile,
-                      'w',
-                      driver=driver,
-                      width=width,
-                      height=width,
-                      crs=ds.crs,
-                      count=len(ds.band_index),
-                      dtype=ds.dtype,
-                      transform=transform) as dst:
-            dst.write(tile.transpose(2, 0, 1))
+        self.suffix_tmpl = suffix_tmpl
+
+    def run(self, outpath, progress=True):
+        mkdir(outpath)
+        basename = self.name
+        suffix = f'{self.suffix_tmpl}.{self.suffix}'
+        meta = self.meta
+        width, height = self.win_size
+
+        pbar = self.window_ids
+        if progress:
+            pbar = tqdm(pbar)
+        for x, y in pbar:
+            tile, window = self.sample(x, y)
+            transform = window_transform(window, self.transform)
+
+            xoff, yoff = window.col_off, window.row_off
+            outfile = osp.join(outpath, basename + suffix.format(xoff, yoff))
+            meta.update(width=width, height=height, transform=transform)
+            with rio.open(outfile, 'w', **meta) as dst:
+                dst.write(tile)
+
+    def sample(self, x, y):
+        xmin, ymin = x, y
+        xsize, ysize = self.win_size
+        window = rio.windows.Window(xmin, ymin, xsize, ysize)
+        tile = self._band.read(window=window)
+
+        return tile, window

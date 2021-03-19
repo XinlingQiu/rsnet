@@ -1,2 +1,2 @@
 from .dataset import RasterDataIterator
-from .converter import split
+from .converter import RasterDataSpliter
