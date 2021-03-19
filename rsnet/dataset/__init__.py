@@ -1,1 +1,1 @@
-from .data_wrapper import RasterDataIterator
+from .raster import RasterDataIterator
