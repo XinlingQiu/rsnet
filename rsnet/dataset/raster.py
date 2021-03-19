@@ -1,71 +1,69 @@
+import os
+
 import rasterio
 import numpy as np
 
 from ..utils import pair
+from .base import BaseRasterData
 
 
-class RasterDataIterator(object):
+class RasterDataIterator(BaseRasterData):
     """Dataset wrapper for remote sensing data.
 
     Args:
         fname:
-        patch_size:
-        slide_step:
+        win_size:
+        step_size:
         pad_size:
         band_index:
     """
     def __init__(self,
                  fname,
-                 patch_size=512,
-                 slide_step=512,
+                 win_size=512,
+                 step_size=512,
                  pad_size=0,
-                 band_index=(1, 2, 3)):
-        self.fname = fname
-        # with rasterio.open(fname) as src:
-        #     self.profile = src.profile
-
-        self._band = rasterio.open(fname)
-
-        self.patch_size = pair(patch_size)
-        self.slide_step = pair(slide_step)
+                 band_index=None):
+        super().__init__(fname=fname)
+        self.win_size = pair(win_size)
+        self.step_size = pair(step_size)
         self.pad_size = pair(pad_size)
 
         total_band_index = [i + 1 for i in range(self.count)]
-        assert set(band_index).issubset(set(total_band_index))
-        self.band_index = band_index
+        if band_index is None:
+            self.band_index = total_band_index
+        else:
+            assert set(band_index).issubset(set(total_band_index))
+            self.band_index = band_index
 
-        self.tile_ids = self.get_tile_info()
+        self.window_ids = self.get_windows_info()
 
         self.start = 0
         self.end = len(self)
 
-    def __del__(self):
-        self._band.close()
-
-    def get_tile_info(self):
+    def get_windows_info(self):
         left, top = 0, 0
         width, height = self.width, self.height
         left_top_xy = []  # left-top corner coordinates (xmin, ymin)
         while left < width:
-            if left + self.patch_size[0] >= width:
-                left = max(width - self.patch_size[0], 0)
+            if left + self.win_size[0] >= width:
+                left = max(width - self.win_size[0], 0)
             top = 0
             while top < height:
-                if top + self.patch_size[1] >= height:
-                    top = max(height - self.patch_size[1], 0)
-                # right = min(left + self.patch_size[0], width - 1)
-                # bottom = min(top + self.patch_size[1], height - 1)
+                if top + self.win_size[1] >= height:
+                    top = max(height - self.win_size[1], 0)
+                # right = min(left + self.win_size[0], width - 1)
+                # bottom = min(top + self.win_size[1], height - 1)
                 # save
                 left_top_xy.append((left, top))
-                if top + self.patch_size[1] >= height:
+                if top + self.win_size[1] >= height:
                     break
                 else:
-                    top += self.slide_step[1]
+                    top += self.step_size[1]
 
-            if left + self.patch_size[0] >= width:
+            if left + self.win_size[0] >= width:
                 break
             else:
-                left += self.slide_step[0]
+                left += self.step_size[0]
 
         return left_top_xy
 
@@ -73,7 +71,7 @@ class RasterDataIterator(object):
         """Get the values of dataset at certain positions.
         """
         xmin, ymin = x, y
-        xsize, ysize = self.patch_size
+        xsize, ysize = self.win_size
         xpad, ypad = self.pad_size
 
         xmin -= xpad
@@ -98,30 +96,28 @@ class RasterDataIterator(object):
             ysize += 2 * ypad
 
         # col_off, row_off, width, height
-        tile_window = rasterio.windows.Window(xmin, ymin, xsize, ysize)
+        window = rasterio.windows.Window(xmin, ymin, xsize, ysize)
 
         # with rasterio.open(self.image_file) as src:
         #     bands = [src.read(k, window=tile_window) for k in self.band_index]
         #     tile_image = np.stack(bands, axis=-1)
-        bands = [
-            self._band.read(k, window=tile_window) for k in self.band_index
-        ]
+        bands = [self._band.read(k, window=window) for k in self.band_index]
         tile_image = np.stack(bands, axis=-1)
 
         img = np.zeros(
-            (self.patch_size[0] + 2 * xpad, self.patch_size[0] + 2 * ypad,
+            (self.win_size[0] + 2 * xpad, self.win_size[0] + 2 * ypad,
              len(self.band_index)),
             dtype=tile_image.dtype)
 
         img[top:top + ysize, left:left + xsize] = tile_image
 
-        return img
+        return img, window
 
     def __getitem__(self, idx):
-        x, y = self.tile_ids[idx]
-        img = self.sample(x, y)
+        x, y = self.window_ids[idx]
+        img, window = self.sample(x, y)
 
-        return img, (x, y)
+        return img, window
 
     def __iter__(self):
         return self
@@ -135,65 +131,12 @@ class RasterDataIterator(object):
             raise StopIteration
 
     def __len__(self):
-        return len(self.tile_ids)
+        return len(self.window_ids)
 
     @property
-    def width(self):
-        return self._band.width
+    def step(self):
+        return self.step_size
 
     @property
-    def height(self):
-        return self._band.height
-
-    @property
-    def count(self):
-        """Band counts."""
-        return self._band.count
-
-    @property
-    def crs(self):
-        return self._band.crs
-
-    @property
-    def transform(self):
-        """Transform matrix as the `affine.Affine`
-        
-        This transform maps pixel row/column coordinates to coordinates in the dataset’s coordinate reference system.
-        
-        affine.identity is returned if if the file does not contain transform
-        """
-        return self._band.transform
-
-    @property
-    def nodata(self):
-        """
-        Band nodata value, type depends on the image dtype; None if the nodata value is not specified
-        """
-        return self._band.nodata
-
-    @property
-    def res(self):
-        """
-        Spatial resolution (x_res, y_res) of the Band in X and Y directions of the georeferenced coordinate system,
-        derived from tranaform. Normally is equal to (transform.a, - transform.e)
-        """
-        return self._band.res
-
-    @property
-    def shape(self):
-        """
-        The raster dimension as a Tuple (height, width)
-        """
-        return self.height, self.width
-
-    @property
-    def bounds(self):
-        """
-        Georeferenced bounds - bounding box in the CRS of the image, based on transform and shape
-        
-        Returns:
-            `BoundingBox object
-            <https://rasterio.readthedocs.io/en/latest/api/rasterio.coords.html#rasterio.coords.BoundingBox>`_:
-            (left, bottom, right, top)
-        """
-        return self._band.bounds
+    def pad(self):
+        return self.pad_size
