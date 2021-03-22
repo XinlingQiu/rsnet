@@ -13,16 +13,28 @@ researchers to handle the remote sensing data.
 1. perform model prediction for large remote sensing image.
 
 ```python
-from rsnet.dataset import RasterDataIterator
+from rsnet.dataset import RasterSampleDataset
+from torch.utils.data import DataLoader
+from torchvision import transforms as T
 
-ds_iter = RasterDataIterator('example.tif',
-                             win_size=512,
-                             step_size=512,
-                             pad_size=128,
-                             band_index=(3, 2, 1))
-
+tsf = T.Compose([
+    T.ToTensor(),
+    T.Normalize(mean=(0.485, 0.456, 0.406),
+                std=(0.229, 0.224, 0.225))
+])
+ds = RasterSampleDataset('example.tif',
+                         win_size=512,
+                         step_size=512,
+                         pad_size=128,
+                         band_index=(3, 2, 1),
+                         transform=tsf)
 # Deep learning model predict
-for img, win in ds_iter:
+loader = DataLoader(ds,
+                    batch_size=1,
+                    num_workers=0,
+                    shuffle=False,
+                    drop_last=False)
+for img, win in loader:
     # convert img to tensor
     ...
     #

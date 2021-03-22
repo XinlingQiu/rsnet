@@ -7,7 +7,7 @@ from ..utils import pair
 from .base import BaseRasterData
 
 
-class RasterDataIterator(BaseRasterData):
+class RasterSampleDataset(BaseRasterData):
     """Dataset wrapper for remote sensing data.
 
     Args:
@@ -22,7 +22,8 @@ class RasterDataIterator(BaseRasterData):
                  win_size=512,
                  step_size=512,
                  pad_size=0,
-                 band_index=None):
+                 band_index=None,
+                 transform=None):
         super().__init__(fname=fname)
         self.win_size = pair(win_size)
         self.step_size = pair(step_size)
@@ -36,6 +37,7 @@ class RasterDataIterator(BaseRasterData):
             self.band_index = band_index
 
         self.window_ids = self.get_windows_info()
+        self.transform = transform
 
         self.start = 0
         self.end = len(self)
@@ -111,24 +113,15 @@ class RasterDataIterator(BaseRasterData):
 
         img[top:top + ysize, left:left + xsize] = tile_image
 
-        return img, window
+        return img
 
     def __getitem__(self, idx):
         x, y = self.window_ids[idx]
-        img, window = self.sample(x, y)
+        img = self.sample(x, y)
+        if self.transform is not None:
+            img = self.transform(img)
 
-        return img, window
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.start < self.end:
-            item = self.__getitem__(self.start)
-            self.start += 1
-            return item
-        else:
-            raise StopIteration
+        return img, x, y
 
     def __len__(self):
         return len(self.window_ids)

@@ -4,7 +4,7 @@ import rasterio as rio
 from affine import Affine
 from tqdm import tqdm
 
-from ..dataset import RasterDataIterator
+from ..dataset import RasterSampleDataset
 from ..utils import mkdir
 
 
@@ -21,7 +21,7 @@ def window_transform(window, transform):
     return Affine.translation(x - transform.c, y - transform.f) * transform
 
 
-class RasterDataSpliter(RasterDataIterator):
+class RasterDataSpliter(RasterSampleDataset):
     def __init__(self, fname, win_size, step_size, suffix_tmpl='_{}_{}'):
         super().__init__(fname=fname,
                          win_size=win_size,
@@ -42,7 +42,7 @@ class RasterDataSpliter(RasterDataIterator):
             pbar = tqdm(pbar)
         for x, y in pbar:
             tile, window = self.sample(x, y)
-            transform = window_transform(window, self.transform)
+            transform = window_transform(window, self.affine_matrix)
 
             xoff, yoff = window.col_off, window.row_off
             outfile = osp.join(outpath, basename + suffix.format(xoff, yoff))

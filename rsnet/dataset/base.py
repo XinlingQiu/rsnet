@@ -29,7 +29,7 @@ class BaseRasterData:
         return self._band.crs
 
     @property
-    def transform(self):
+    def affine_matrix(self):
         """Transform matrix as the `affine.Affine`
         
         This transform maps pixel row/column coordinates to coordinates in the dataset’s coordinate reference system.

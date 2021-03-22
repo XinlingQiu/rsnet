@@ -1,1 +1,1 @@
-from .raster import RasterDataIterator
+from .raster import RasterSampleDataset
