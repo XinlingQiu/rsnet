@@ -34,10 +34,7 @@ loader = DataLoader(ds,
                     num_workers=0,
                     shuffle=False,
                     drop_last=False)
-for img, win in loader:
-    # convert img to tensor
-    ...
-    #
+for img, xoff, yoff in loader:
     with torch.no_grad():
         result = model(img)
 ```
