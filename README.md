@@ -50,3 +50,15 @@ ds_spliter = RasterDataSpliter('example.tif',
 ds_spliter.run('/path/to/output', progress=True)
 ```
 
+3. Eval classification result
+
+```python
+from rsnet.eval import eval_seg
+
+pred_fname = '/path/to/pred.tif'
+gt_fname = '/path/to/gt.tif'
+ret_metrics = eval_seg(pred_fname,
+                           gt_fname,
+                           num_classes=5,
+                           metrics=['IoU', 'Prec', 'Recall'])
+```
