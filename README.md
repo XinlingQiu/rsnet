@@ -62,3 +62,15 @@ ret_metrics = eval_seg(pred_fname,
                            num_classes=5,
                            metrics=['IoU', 'Prec', 'Recall'])
 ```
+
+4. Rasterize vector to raster
+
+```python
+from rsnet.converter import rasterize
+
+vfile = '/path/to/vectorfile'
+rfile = '/path/to/reference/rasterfile'
+output = '/path/to/output'
+
+rasterize(vfile, output, 'GTiff', rfile)
+```
